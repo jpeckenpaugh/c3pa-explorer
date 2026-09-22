@@ -36,9 +36,9 @@ function versionMismatchMessage(actual) {
   );
 }
 
-// ---- hide the raw-fetch export button (Phase 3) ----
-const navDownload = document.querySelector("#navDownload");
-if (navDownload) navDownload.style.display = "none";
+// ---- the export (Download) modal now works in browser mode via the bridge
+// ---- (exportModal.js routes through c3paBrowser.exportPreview/Download), so
+// ---- the nav button stays visible. Only reached with a snapshot open. ----
 
 // ---- boot overlay styles (browser/-only; frontend/ stays untouched) --------
 (function injectStyles() {

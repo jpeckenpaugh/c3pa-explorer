@@ -2,6 +2,7 @@
 "use strict";
 
 import { $ } from "../core/utils.js";
+import { fetchJSON } from "../core/api.js";
 
 let exportParamsBuilder = () => new URLSearchParams();
 let resetSampleConfig = null;
@@ -59,6 +60,40 @@ export function moveAllFieldItems(fromArray, toArray) {
 export function wireExportModal() {
   let isValidated = false;
   let reEnableTimer = null;
+
+  /** Download the export: bridge Blob in browser mode, /api/export anchor in
+   *  server mode. Mirrors the original anchor-download UX either way. */
+  async function triggerExportDownload(p) {
+    try {
+      const url = String(p);
+      let anchorHref;
+      let anchorName;
+      if (globalThis.c3paBrowser && globalThis.c3paBrowser.exportDownload) {
+        const res = await globalThis.c3paBrowser.exportDownload(`/api/export?${url}`);
+        if (!res || !res.bytes) throw new Error("export returned no file");
+        const blob = new Blob([res.bytes], { type: "application/zip" });
+        anchorHref = URL.createObjectURL(blob);
+        anchorName = res.file || "c3pa_export.zip";
+      } else {
+        anchorHref = `/api/export?${url}`;
+      }
+      const a = document.createElement("a");
+      a.href = anchorHref;
+      if (anchorName) a.download = anchorName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      if (anchorHref && anchorHref.startsWith("blob:")) setTimeout(() => URL.revokeObjectURL(anchorHref), 1000);
+      bootstrap.Modal.getOrCreateInstance($("#exportModal")).hide();
+    } catch (err) {
+      const fb = $("#exportValidationFeedback");
+      if (fb) {
+        fb.style.display = "block";
+        fb.className = "my-2 p-2 rounded small bg-danger-subtle text-danger border border-danger-subtle";
+        fb.textContent = `❌ Download Error: ${err.message}`;
+      }
+    }
+  }
 
   function setButtonState(state) {
     const btn = $("#exportValidate");
@@ -314,13 +349,7 @@ export function wireExportModal() {
       $("#exportError").classList.add("d-none");
       const p = getExportQueryParams();
 
-      const a = document.createElement("a");
-      a.href = `/api/export?${p}`;
-      a.download = "";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      bootstrap.Modal.getOrCreateInstance($("#exportModal")).hide();
+      await triggerExportDownload(p);
       return;
     }
 
@@ -352,8 +381,7 @@ export function wireExportModal() {
     const p = getExportQueryParams();
 
     try {
-      const res = await fetch(`/api/export/preview?${p}`);
-      const data = await res.json();
+      const data = await fetchJSON(`/api/export/preview?${p}`);
       const fb = $("#exportValidationFeedback");
 
       if (data.valid) {

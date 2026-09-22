@@ -76,9 +76,9 @@ const ROUTES = Object.freeze([
   // /api/search — backend/api/search.py
   Object.freeze({ re: /^\/api\/search$/, handler: "search", strs: ["q"] }),
 
-  // Phase 3 / not ported — recognized so they fail loudly instead of 404ing
-  // as "unknown endpoint" (§7b.8).
-  Object.freeze({ re: /^\/api\/export(\/preview)?$/, handler: null, unsupported: true }),
+  // /api/export + /api/export/preview — handled by the export ops (Phase 3 port)
+  Object.freeze({ re: /^\/api\/export\/preview$/, handler: "exportPreview", export: true }),
+  Object.freeze({ re: /^\/api\/export$/, handler: "exportDownload", export: true }),
 ]);
 
 function intError(key, value) {
@@ -169,9 +169,9 @@ export function parseRequestUrl(rawUrl) {
           { type: "missing", loc: ["query", route.queryArg], msg: "Field required" },
         ]);
       }
-      return { handler: route.handler, args: [provided[route.queryArg]] };
+      return { handler: route.handler, args: [provided[route.queryArg]], export: !!route.export };
     }
-    return { handler: route.handler, args: [provided] };
+    return { handler: route.handler, args: [provided], export: !!route.export };
   }
 
   throw new RouteError(404, "Not Found");
@@ -201,6 +201,40 @@ export function validateManifest(payload, expectedVersion) {
 // ---------------------------------------------------------------------------
 // Runtime: Worker transport + fetchJSON facade (boot.js only, never Node tests)
 // ---------------------------------------------------------------------------
+
+// Split a /api/... query URL into {opts, params} from the query string, with
+// the boolean/int/float coercion the FastAPI export routers used.
+function parseExportUrl(rawUrl) {
+  const href = String(rawUrl).split("#", 1)[0];
+  const qm = href.indexOf("?");
+  const qs = qm === -1 ? "" : href.slice(qm + 1);
+  const sp = new URLSearchParams(qs);
+  const str = (k, d) => (sp.get(k) ?? d);
+  const bool = (k, d) => (sp.has(k) ? ["1", "true", "yes", "on", "t", "y"].includes(sp.get(k).trim().toLowerCase()) : d);
+  const num = (k, d) => (sp.has(k) ? Number(sp.get(k)) : d);
+  const opts = {
+    format: str("format", "csv"),
+    split: bool("split", true),
+    splitTrain: num("split_train", 80),
+    splitEval: num("split_eval", 10),
+    splitTest: num("split_test", 10),
+    seed: num("seed", 42),
+    stratify: bool("stratify", true),
+    excludeOther: bool("exclude_other", false),
+    maxDocLabelPct: num("max_doc_label_pct", 0),
+  };
+  if (sp.has("fields")) opts.fields = sp.get("fields");
+  // The remaining unit-filter params (subset, category, labels, ...) pass
+  // through as raw strings/ints; parseUnitParams in the query layer coerces.
+  const params = {};
+  for (const [k, v] of sp) {
+    if (!["format", "split", "split_train", "split_eval", "split_test", "seed",
+          "stratify", "exclude_other", "max_doc_label_pct", "fields"].includes(k)) {
+      params[k] = v;
+    }
+  }
+  return { params, opts };
+}
 
 function httpError(status, detail) {
   const body = JSON.stringify({ detail }).slice(0, 200);
@@ -270,6 +304,23 @@ export function createBridge({ client = null } = {}) {
     resolveReady = resolve;
   });
 
+  const exportPreview = async (rawUrl) => {
+      const status = await ready;
+      if (status && status.error) throw new Error(status.error);
+      const { params, opts } = parseExportUrl(rawUrl);
+      const reply = await client0.call("export.preview", { params, opts });
+      if (typeof reply === "object" && reply && reply.error) throw httpError(400, reply.error);
+      return reply;
+    };
+    const exportDownload = async (rawUrl) => {
+      const status = await ready;
+      if (status && status.error) throw new Error(status.error);
+      const { params, opts } = parseExportUrl(rawUrl);
+      const reply = await client0.call("export.download", { params, opts });
+      if (typeof reply === "object" && reply && reply.error) throw httpError(400, reply.error);
+      return reply;
+    };
+
   const facade = {
     ready,
     resolveReady,
@@ -283,9 +334,18 @@ export function createBridge({ client = null } = {}) {
       } catch (error) {
         throw httpError(error.status || 500, error.detail || error.message);
       }
+      if (parsed.export) {
+        return exportPreview(url);
+      }
       const reply = await client0.call("dispatch", { handler: parsed.handler, args: parsed.args });
       return reply;
     },
+
+    // /api/export/preview → {valid, counts, warnings, ...} (mirrors FastAPI)
+    exportPreview,
+
+    // /api/export → run the build in the worker, return {file, bytes}
+    exportDownload,
   };
   return facade;
 }

@@ -134,6 +134,28 @@ registry.set("dispatch", async (payload) => {
   return runDispatch(payload.handler, payload.args || []);
 });
 
+// ---- export (Phase 3 browser port of /api/export*) -------------------------
+
+// export.preview → validate+preview dict (mirrors /api/export/preview)
+registry.set("export.preview", async (payload) => {
+  requireWorkspace();
+  const mod = await import("../query/export-service.js");
+  const handle = mod.createExportHandler(database);
+  return handle.preview(payload.params, payload.opts || {});
+});
+
+// export.download → build the ZIP in-memory; returns {file, bytes}
+registry.set("export.download", async (payload) => {
+  requireWorkspace();
+  const mod = await import("../query/export-service.js");
+  const handle = mod.createExportHandler(database);
+  const res = await handle.download(payload.params, payload.opts || {});
+  // Structured-clone transfers Uint8Array fine, but expose a plain ArrayBuffer
+  // for the port-transfer optimization and simple downstream Blob construction.
+  const bytes = res.zip.buffer instanceof ArrayBuffer ? res.zip.buffer : res.zip;
+  return { file: res.zipFilename, bytes };
+});
+
 // ---- single-queue serialization --------------------------------------------
 
 self.onmessage = ({ data }) => {
@@ -147,7 +169,9 @@ self.onmessage = ({ data }) => {
         throw err;
       }
       const result = await handler(data.payload || {});
-      self.postMessage({ id: data.id, result });
+      // Transfer binary payloads (ZIP downloads) over the same message port.
+      const transfer = result && result.bytes instanceof ArrayBuffer ? [result.bytes] : [];
+      self.postMessage({ id: data.id, result }, transfer);
     } catch (error) {
       const tagged = error.status
         ? error
