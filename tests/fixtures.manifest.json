@@ -1,0 +1,55 @@
+{
+  "_comment": "Shared endpoint + query-param manifest for Phase 0 parity. Both tests/gen_fastapi_fixtures.py (FastAPI TestClient) and tests/jbrowser_parity.test.js (sql.js) consume this list, so the param set cannot drift. 200-path only: error paths (404 / 422 / alignment no-404 asymmetry) are out of Phase 0 parity scope (section 5a.B1/B4) and are covered by hand-written bridge tests instead. Tokens {DOC_ID} / {UNIT_ID} / {ANNOTATION_ID} are resolved by each engine from its OWN first-row query (limit=1) so this file never hardcodes ids.",
+  "meta": {
+    "seed_queries": {
+      "DOC_ID": "/api/documents?limit=1 -> rows[0].doc_id",
+      "UNIT_ID": "/api/units?limit=1 -> rows[0].unit_id",
+      "ANNOTATION_ID": "/api/annotations?limit=1&offset=0 -> rows[0].annotation_id"
+    },
+    "canonical_keys": "search result arrays (documents/provisions/annotators/units) and each /api/units row's `support` array are normalized (sorted) before comparison; everything else is compared exactly (section 5a.B3)."
+  },
+  "entries": [
+    { "id": "stats", "path": "/api/stats", "params": {}, "file": "stats.json", "call": { "method": "stats" } },
+    { "id": "stats_et2", "path": "/api/stats", "params": { "evidence_threshold": "2" }, "file": "stats_et2.json", "call": { "method": "stats" } },
+    { "id": "stats_ra12", "path": "/api/stats", "params": { "ranumbs": "ra1,ra2" }, "file": "stats_ra12.json", "call": { "method": "stats" } },
+    { "id": "labels", "path": "/api/labels", "params": {}, "file": "labels.json", "call": { "method": "labels" } },
+    { "id": "fragment_types", "path": "/api/fragment-types", "params": {}, "file": "fragment_types.json", "call": { "method": "fragmentTypes" } },
+
+    { "id": "documents", "path": "/api/documents", "params": {}, "file": "documents.json", "call": { "method": "documents" } },
+    { "id": "documents_ws", "path": "/api/documents", "params": { "subset": "WS", "limit": "3", "offset": "1" }, "file": "documents_ws.json", "call": { "method": "documents" } },
+    { "id": "documents_q", "path": "/api/documents", "params": { "q": "privacy" }, "file": "documents_q.json", "call": { "method": "documents" } },
+    { "id": "documents_sort", "path": "/api/documents", "params": { "sort": "sentence_count", "order": "desc", "limit": "5" }, "file": "documents_sort.json", "call": { "method": "documents" } },
+    { "id": "documents_order", "path": "/api/documents/order", "params": {}, "file": "documents_order.json", "call": { "method": "documentsOrder" } },
+    { "id": "document_detail", "path": "/api/documents/{DOC_ID}", "params": {}, "file": "document_detail.json", "call": { "method": "documentDetail", "pathArgs": ["{DOC_ID}"] } },
+    { "id": "document_rendered", "path": "/api/documents/{DOC_ID}/rendered", "params": {}, "file": "document_rendered.json", "call": { "method": "documentRendered", "pathArgs": ["{DOC_ID}"] } },
+    { "id": "document_annotations", "path": "/api/documents/{DOC_ID}/annotations", "params": {}, "file": "document_annotations.json", "call": { "method": "documentAnnotations", "pathArgs": ["{DOC_ID}"] } },
+
+    { "id": "units_subset_db", "path": "/api/units", "params": { "subset": "DB" }, "file": "units_subset_db.json", "call": { "method": "units" } },
+    { "id": "units_doc", "path": "/api/units", "params": { "doc_id": "{DOC_ID}" }, "file": "units_doc.json", "call": { "method": "units" } },
+    { "id": "units_category_single", "path": "/api/units", "params": { "category": "single_label" }, "file": "units_category_single.json", "call": { "method": "units" } },
+    { "id": "units_kind_fragment", "path": "/api/units", "params": { "unit_kind": "fragment" }, "file": "units_kind_fragment.json", "call": { "method": "units" } },
+    { "id": "units_phone", "path": "/api/units", "params": { "unit_kind": "fragment", "fragment_type": "phone" }, "file": "units_phone.json", "call": { "method": "units" } },
+    { "id": "units_labels", "path": "/api/units", "params": { "labels": "Updated Privacy Policy,Others", "limit": "5" }, "file": "units_labels.json", "call": { "method": "units" } },
+    { "id": "units_min_annotators", "path": "/api/units", "params": { "min_annotators": "2" }, "file": "units_min_annotators.json", "call": { "method": "units" } },
+    { "id": "units_high_confidence", "path": "/api/units", "params": { "high_confidence": "true" }, "file": "units_high_confidence.json", "call": { "method": "units" } },
+    { "id": "units_q", "path": "/api/units", "params": { "q": "notify" }, "file": "units_q.json", "call": { "method": "units" } },
+    { "id": "units_sample_sm", "path": "/api/units", "params": { "sample_view": "single,multi", "limit": "5" }, "file": "units_sample_sm.json", "call": { "method": "units" } },
+    { "id": "units_sample_null_ms3", "path": "/api/units", "params": { "sample_view": "null", "min_support": "3" }, "file": "units_sample_null_ms3.json", "call": { "method": "units" } },
+    { "id": "units_sample_fragments", "path": "/api/units", "params": { "sample_view": "fragments" }, "file": "units_sample_fragments.json", "call": { "method": "units" } },
+    { "id": "units_ms2_exact", "path": "/api/units", "params": { "sample_view": "single,multi", "min_support": "2", "support_mode": "exact", "limit": "5" }, "file": "units_ms2_exact.json", "call": { "method": "units" } },
+    { "id": "units_paged", "path": "/api/units", "params": { "limit": "3", "offset": "7" }, "file": "units_paged.json", "call": { "method": "units" } },
+
+    { "id": "alignment", "path": "/api/alignment", "params": { "unit_id": "{UNIT_ID}" }, "file": "alignment.json", "call": { "method": "alignment", "pathArgs": ["{UNIT_ID}"] } },
+
+    { "id": "annotations", "path": "/api/annotations", "params": {}, "file": "annotations.json", "call": { "method": "annotations" } },
+    { "id": "annotations_ranumb_all", "path": "/api/annotations", "params": { "ranumb": "all" }, "file": "annotations_ranumb_all.json", "call": { "method": "annotations" } },
+    { "id": "annotations_label", "path": "/api/annotations", "params": { "label": "Others", "limit": "5" }, "file": "annotations_label.json", "call": { "method": "annotations" } },
+    { "id": "annotations_status", "path": "/api/annotations", "params": { "status": "unmatched", "limit": "3" }, "file": "annotations_status.json", "call": { "method": "annotations" } },
+    { "id": "annotations_paged", "path": "/api/annotations", "params": { "limit": "10", "offset": "5" }, "file": "annotations_paged.json", "call": { "method": "annotations" } },
+    { "id": "annotation_detail", "path": "/api/annotations/{ANNOTATION_ID}", "params": {}, "file": "annotation_detail.json", "call": { "method": "annotationDetail", "pathArgs": ["{ANNOTATION_ID}"] } },
+
+    { "id": "search_privacy", "path": "/api/search", "params": { "q": "privacy" }, "file": "search_privacy.json", "call": { "method": "search" } },
+    { "id": "search_notify", "path": "/api/search", "params": { "q": "notify" }, "file": "search_notify.json", "call": { "method": "search" } },
+    { "id": "search_ra1", "path": "/api/search", "params": { "q": "ra1" }, "file": "search_ra1.json", "call": { "method": "search" } }
+  ]
+}

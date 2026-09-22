@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """CI/CD site assembler — builds the deployable static site for GitHub Pages.
 
-The c3pa-explorer repo is the deployable DEMO ONLY (the browser edition with
-sql.js). This script takes the authoritative implementation sources from the
-POC repo (c3pa-explorer_2) and emits `site/` with everything GitHub Pages
-needs, pre-rewritten so NO server-side processing is required at request time:
+The browser edition (sql.js) of the C3PA Explorer ships as a static `site/`.
+This script takes the implementation sources from THIS repo (the SPA in
+`frontend/`, the browser-edition runtime in `browser/`, the snapshot artifacts
+at the repo root) and emits `site/` with everything GitHub Pages needs,
+pre-rewritten so NO server-side processing is required at request time:
 
   site/index.html          SPA shell rewritten for the browser edition:
                              - boot module (<browser/js/core/boot.js>) injected
@@ -24,8 +25,9 @@ Repo layout of the deployable:
   site/static/*            the SPA assets (relative: static/…)
   site/browser/*           runtime + vendor (relative: browser/…)
 
-Stdlib only, Python 3.9-compatible. Run from the repo root:
-  python3 tools/build_site.py [--source /path/to/c3pa-explorer_2] [--out site]
+Stdlib only, Python 3.9-compatible. Run from the repo root (source defaults to
+the repo root, i.e. one level above tools/):
+  python3 tools/build_site.py [--source /path/to/repo] [--out site]
 """
 import argparse
 import json
@@ -33,7 +35,7 @@ import os
 import shutil
 from pathlib import Path
 
-DEFAULT_SOURCE = Path.home() / "git" / "c3pa-explorer_2"
+DEFAULT_SOURCE = Path(__file__).resolve().parent.parent
 
 INDEX_MAIN_TAG = '<script type="module" src="/static/js/main.js">'
 BOOT_TAG = '<script type="module" src="browser/js/core/boot.js"></script>\n  '

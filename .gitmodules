@@ -1,0 +1,3 @@
+[submodule "c3pa-sentence-label-parser"]
+	path = c3pa-sentence-label-parser
+	url = https://github.com/jpeckenpaugh/c3pa-sentence-label-parser.git

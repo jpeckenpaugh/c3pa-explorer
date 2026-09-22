@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>C3PA Dataset Explorer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/static/styles.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#/">C3PA Dataset Explorer</a>
+      <div class="navbar-nav align-items-center">
+        <a class="nav-link d-flex align-items-center me-1" href="#" id="navGlobalSearch" title="Global Search">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+          </svg>
+        </a>
+        <a class="nav-link d-flex align-items-center" href="#/" title="Home">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.707 1.5Z"/>
+          </svg>
+        </a>
+        <a class="nav-link" href="#/library">Documents</a>
+        <a class="nav-link" href="#/classification">Upstream Annotations</a>
+        <a class="nav-link" href="#/samples">Downstream Data</a>
+        <button class="btn btn-outline-light btn-sm ms-2" id="navConfigure" title="Configure samples filters">&#9881;</button>
+        <button class="btn btn-outline-light btn-sm ms-1" id="navDownload" title="Export / Download dataset">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+            <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid py-3" id="app">
+    <div class="text-center py-5"><span class="spinner-border" role="status"></span></div>
+  </main>
+
+  <!-- Unit detail modal (document page) -->
+  <div class="modal fade" id="unitModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2 d-flex align-items-center">
+          <h5 class="modal-title me-auto" id="unitModalTitle">Sample Details</h5>
+          <div class="btn-group btn-group-sm me-2">
+            <button class="btn btn-outline-secondary" id="unitPrev" title="Previous unit">&#8592;</button>
+            <span class="btn btn-light disabled small" id="unitCounter" style="border:1px solid #ced4da">0 of 0</span>
+            <button class="btn btn-outline-secondary" id="unitNext" title="Next unit">&#8594;</button>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="unitModalBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotation detail modal -->
+  <div class="modal fade" id="annotationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2 d-flex align-items-center">
+          <h5 class="modal-title me-auto" id="annotationModalTitle">Annotation Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="annotationModalBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Search modal -->
+  <div class="modal fade" id="globalSearchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2 d-flex align-items-center">
+          <h5 class="modal-title me-auto d-flex align-items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            Global Search
+          </h5>
+          <span class="badge text-bg-light border text-muted me-2 small">Cmd+K</span>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <div class="input-group mb-3">
+            <span class="input-group-text bg-white border-end-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+            </span>
+            <input type="text" class="form-control border-start-0 ps-0" placeholder="Search documents, verbatim annotations, legal labels, or text units..." id="globalSearchInput" autocomplete="off">
+          </div>
+          <div id="globalSearchResults">
+            <div class="text-center py-4 text-muted">
+              <div class="fw-semibold mb-1">Spotlight Search</div>
+              <div class="small">Type keywords above to search documents, annotators, legal provisions, and text units.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document details modal -->
+  <div class="modal fade" id="docModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h5 class="modal-title" id="docModalTitle"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="docModalBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export modal -->
+  <div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header py-3">
+          <h5 class="modal-title fs-5 fw-bold">Download Sample Sets</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body py-3">
+
+          <!-- 1. File Format -->
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">File Format</label>
+            <div>
+              <input type="hidden" id="exportFormat" value="csv">
+              <div class="btn-group btn-group-sm" role="group" aria-label="File Format">
+                <input type="radio" class="btn-check" name="exportFormatRadio" id="exportFormatCSV" value="csv" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="exportFormatCSV">CSV</label>
+                <input type="radio" class="btn-check" name="exportFormatRadio" id="exportFormatJSON" value="json" autocomplete="off">
+                <label class="btn btn-outline-primary" for="exportFormatJSON">JSON</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Dataset Partitioning -->
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1">Dataset Partitioning</label>
+            <div>
+              <div class="btn-group btn-group-sm" role="group" aria-label="Dataset Partitioning">
+                <input type="radio" class="btn-check" name="exportSplitRadio" id="exportSplitOff" value="off" autocomplete="off">
+                <label class="btn btn-outline-primary" for="exportSplitOff">Disabled</label>
+
+                <input type="radio" class="btn-check" name="exportSplitRadio" id="exportSplit2" value="2" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="exportSplit2">Train / Test</label>
+
+                <input type="radio" class="btn-check" name="exportSplitRadio" id="exportSplit3" value="3" autocomplete="off">
+                <label class="btn btn-outline-primary" for="exportSplit3">Train / Eval / Test</label>
+              </div>
+            </div>
+            <div class="form-text">Partitions honor document groupings to prevent data leakage across splits.</div>
+
+            <!-- Split Ratios (shown when enabled) -->
+            <div id="exportSplitOptions" class="mt-2 pt-2 border-top">
+              <div class="d-flex align-items-center gap-3">
+                <div id="exportTrainCol" class="d-flex align-items-center gap-1">
+                  <label class="form-label small mb-0 text-muted" for="exportTrainNum">Train %</label>
+                  <input type="number" class="form-control form-control-sm text-end" id="exportTrainNum" min="0" max="100" step="1" value="80" style="width: 58px">
+                </div>
+                <div id="exportEvalCol" style="display:none">
+                  <div class="d-flex align-items-center gap-1">
+                    <label class="form-label small mb-0 text-muted" for="exportEvalNum">Eval %</label>
+                    <input type="number" class="form-control form-control-sm text-end" id="exportEvalNum" min="0" max="100" step="1" value="0" style="width: 58px">
+                  </div>
+                </div>
+                <div id="exportTestCol" class="d-flex align-items-center gap-1">
+                  <label class="form-label small mb-0 text-muted" for="exportTestNum">Test %</label>
+                  <input type="number" class="form-control form-control-sm text-end" id="exportTestNum" min="0" max="100" step="1" value="20" style="width: 58px">
+                </div>
+                <button class="btn btn-link btn-sm p-0 text-decoration-none text-muted ms-auto" id="exportPartitionReset" title="Reset split ratios to defaults" style="font-size: 1.1rem; line-height: 1;">&#8634;</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Seed, Stratification & Exclusions -->
+          <div class="mb-3">
+            <div class="row g-3 mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-semibold mb-1" for="exportSeed">Random Seed</label>
+                <input type="number" class="form-control form-control-sm" id="exportSeed" value="42">
+              </div>
+              <div class="col-6 d-flex flex-column justify-content-end">
+                <div class="form-check form-switch mb-1">
+                  <input class="form-check-input" type="checkbox" id="exportStratify" checked>
+                  <label class="form-check-label small fw-semibold" for="exportStratify">Stratify by Label</label>
+                </div>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="exportExcludeOther" checked>
+              <label class="form-check-label small fw-semibold" for="exportExcludeOther">Exclude samples with 'Other' catch-all label</label>
+            </div>
+          </div>
+
+          <!-- 4. Max Representation Cap -->
+          <div class="mb-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="exportMaxDocCapToggle">
+                <label class="form-check-label small fw-semibold" for="exportMaxDocCapToggle">Max Rep Cap per Document</label>
+              </div>
+              <div id="exportMaxDocCapContainer" style="display: none;">
+                <div class="input-group input-group-sm" style="width: 100px;">
+                  <input type="number" class="form-control text-end" id="exportMaxDocCapNum" min="1" max="100" step="1" value="20">
+                  <span class="input-group-text">%</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-text">Caps any single label at P% of a document's total units to prevent dominant label monopoly.</div>
+          </div>
+
+          <!-- 5. Customize Fields -->
+          <div class="mb-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="exportCustomFieldsToggle">
+              <label class="form-check-label small fw-semibold" for="exportCustomFieldsToggle">Customize Fields</label>
+            </div>
+            <div id="exportCustomFieldsContainer" style="display: none;" class="mt-2 border rounded p-2 bg-light">
+              <div class="row g-2 align-items-center">
+                <div class="col-5">
+                  <label class="form-label small mb-1 fw-bold text-muted" style="font-size:0.75rem;">Included Fields</label>
+                  <select id="exportIncludedFields" multiple class="form-select form-select-sm font-monospace" style="height: 140px; font-size: 0.78rem;"></select>
+                </div>
+                <div class="col-2 d-flex flex-column align-items-center justify-content-center gap-1">
+                  <button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0" id="fieldExclude" title="Exclude selected field">&gt;</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0" id="fieldExcludeAll" title="Exclude all fields">&gt;&gt;</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0" id="fieldInclude" title="Include selected field">&lt;</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm px-2 py-0" id="fieldIncludeAll" title="Include all fields">&lt;&lt;</button>
+                </div>
+                <div class="col-5">
+                  <label class="form-label small mb-1 fw-bold text-muted" style="font-size:0.75rem;">Excluded Fields</label>
+                  <select id="exportExcludedFields" multiple class="form-select form-select-sm font-monospace" style="height: 140px; font-size: 0.78rem;"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="exportValidationFeedback" class="my-2 p-2 rounded small" style="display: none;"></div>
+          <div class="text-danger small d-none" id="exportError"></div>
+        </div>
+        <div class="modal-footer py-2">
+          <button class="btn btn-sm btn-outline-secondary" id="exportReset" data-bs-toggle="tooltip" data-bs-placement="top"
+            title="Reset to default export settings: Sample Type = Single Label; Parent Document Type = All; Evidence Threshold = 1; Support Configuration = At Least / Minimal; no label filters. Export Format = CSV; Partition = Train/eval/test at 70/15/15; Random seed = 42; Stratify by label = off.">Optimized Defaults</button>
+          <button class="btn btn-sm btn-outline-success" id="exportValidate">Validate</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
