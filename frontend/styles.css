@@ -141,19 +141,20 @@ body { background: #f6f7f9; }
   animation: flowLineFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Traveling light pulses down conduit lines */
-.flow-pulse-line {
-  stroke-dasharray: 45 550;
-  stroke-dashoffset: 595;
-  stroke-linecap: round;
-  animation: flowPulseAnim var(--pulse-dur, 2.2s) linear var(--pulse-delay, 1000ms) var(--pulse-iters, 4) forwards;
+/* Traveling pulse dots — driven by CSS offset-path (offset-distance is
+   transform-composited, so the motion is GPU-accelerated and does not repaint
+   per frame like the old stroke-dashoffset dash). */
+.flow-pulse-dot {
+  offset-path: var(--pulse-path);
   opacity: 0;
   pointer-events: none;
+  will-change: offset-distance, opacity;
+  animation: flowPulseDot var(--pulse-dur, 2.2s) linear var(--pulse-delay, 1000ms) var(--pulse-iters, 4) forwards;
 }
 
-@keyframes flowPulseAnim {
+@keyframes flowPulseDot {
   0% {
-    stroke-dashoffset: 595;
+    offset-distance: 0%;
     opacity: 0;
   }
   6% {
@@ -163,7 +164,7 @@ body { background: #f6f7f9; }
     opacity: 0.95;
   }
   100% {
-    stroke-dashoffset: 0;
+    offset-distance: 100%;
     opacity: 0;
   }
 }

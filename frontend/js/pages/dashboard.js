@@ -155,10 +155,15 @@ export async function pageDashboard() {
         fill="none" stroke="${color}" stroke-width="1.5" filter="url(#lineShadow)"${opacity < 1 ? ` stroke-opacity="${opacity.toFixed(2)}"` : ""}${delayMs ? ` style="animation-delay:${delayMs}ms;"` : ""}/>`;
     };
 
-    const pulseCurve = (x1, y1, x2, y2, color = "#ffffff", delayMs = 1000, durSec = "2.0", iters = 4) => {
+    const pulseDot = (x1, y1, x2, y2, color = "#ffffff", delayMs = 1000, durSec = "2.0", iters = 4) => {
       const mid = (y1 + y2) / 2;
       const d = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${x1.toFixed(1)} ${mid.toFixed(1)}, ${x2.toFixed(1)} ${mid.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-      return `<path class="flow-pulse-line" d="${d}" fill="none" stroke="${color}" stroke-width="2.5" filter="url(#pulseGlow)" style="--pulse-delay:${delayMs}ms; --pulse-dur:${durSec}s; --pulse-iters:${iters};"/>`;
+      // A halo + core dot that TRAVELS the conduit path via CSS offset-path —
+      // offset-distance is transform-composited (GPU), unlike the old
+      // stroke-dashoffset repaint. cx/cy stay 0,0: the offset moves the group.
+      return `<g class="flow-pulse-dot" fill="${color}" style="--pulse-path:path('${d}');--pulse-delay:${delayMs}ms;--pulse-dur:${durSec}s;--pulse-iters:${iters};">
+  <circle r="6" opacity="0.35"/><circle r="3"/>
+</g>`;
     };
 
     if (!window._dashPulseParams) {
@@ -182,26 +187,19 @@ export async function pageDashboard() {
       const delay = isFirstDraw ? (120 + i * 90) : 0;
       lines.push(curve(docXs[i], doc.bottom, undXs[i], und.top, greyRamp(i), 1, delay));
       const p = window._dashPulseParams[i];
-      lines.push(pulseCurve(docXs[i], doc.bottom, undXs[i], und.top, "#ffffff", p.delayMs, p.durSec, p.iters));
+      lines.push(pulseDot(docXs[i], doc.bottom, undXs[i], und.top, "#ffffff", p.delayMs, p.durSec, p.iters));
     }
     for (let i = 0; i < N; i++) {
       const reverseIdx = (N - 1) - i;
       const delay = isFirstDraw ? (165 + reverseIdx * 90) : 0;
       lines.push(curve(lblXs[i], lbl.bottom, defXs[i], def.top, lblColors[i] || "#adb5bd", colorOpacity(i), delay));
       const p = window._dashPulseParams[13 + i];
-      lines.push(pulseCurve(lblXs[i], lbl.bottom, defXs[i], def.top, lblColors[i] || "#ffffff", p.delayMs, p.durSec, p.iters));
+      lines.push(pulseDot(lblXs[i], lbl.bottom, defXs[i], def.top, lblColors[i] || "#ffffff", p.delayMs, p.durSec, p.iters));
     }
     svg.setAttribute("viewBox", `0 0 ${fr.width} ${fr.height}`);
     svg.innerHTML = `<defs>
   <filter id="lineShadow" x="-20%" y="-20%" width="140%" height="140%">
     <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="rgba(0, 0, 0, .35)"/>
-  </filter>
-  <filter id="pulseGlow" x="-30%" y="-30%" width="160%" height="160%">
-    <feGaussianBlur stdDeviation="2" result="blur"/>
-    <feMerge>
-      <feMergeNode in="blur"/>
-      <feMergeNode in="SourceGraphic"/>
-    </feMerge>
   </filter>
 </defs>` + lines.join("");
   }
