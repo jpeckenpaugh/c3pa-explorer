@@ -44,14 +44,26 @@ def get_stats_data(conn: sqlite3.Connection, evidence_threshold: int = 1, ranumb
         "documents": one("SELECT COUNT(*) FROM documents"),
         "units": one("SELECT COUNT(*) FROM text_units"),
         "sentences": kinds.get("sentence", 0),
+        "unique_sentences": one("SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence'"),
         "fragments": kinds.get("fragment", 0),
+        "unique_fragments": one("SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='fragment'"),
         "annotations": one(f"SELECT COUNT(*) FROM annotations {where_ann}", ann_args),
+        "unique_annotations": one(f"SELECT COUNT(DISTINCT text) FROM annotations {where_ann}", ann_args),
         "aligned": one(f"SELECT COUNT(*) FROM annotations WHERE status='aligned' {and_ann}", ann_args),
         "unmatched": one(f"SELECT COUNT(*) FROM annotations WHERE status='unmatched' {and_ann}", ann_args),
         "ambiguous": one(f"SELECT COUNT(*) FROM annotations WHERE status='ambiguous' {and_ann}", ann_args),
         "single_label_sentences": cats.get("single_label", 0),
+        "unique_single_label_sentences": one(
+            "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' AND label_category='single_label'"),
         "multi_label_sentences": cats.get("multi_label", 0),
+        "unique_multi_label_sentences": one(
+            "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' AND label_category='multi_label'"),
         "unlabeled_sentences": cats.get("unlabeled", 0),
+        "unique_unlabeled_sentences": one(
+            "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' AND label_category='unlabeled'"),
+        "unique_defined_samples": one(
+            "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' "
+            "AND label_category IN ('single_label','multi_label')"),
         "high_confidence_single": one(
             "SELECT COUNT(*) FROM text_units WHERE label_category='single_label' AND annotator_count>=2"),
         "subsets": {r["subset"]: r["n"] for r in
@@ -68,11 +80,21 @@ def get_stats_data(conn: sqlite3.Connection, evidence_threshold: int = 1, ranumb
         "WHERE label_category IN ('single_label', 'multi_label')")}
     single_stars = {1: 0, 2: 0, 3: 0}
     multi_stars = {1: 0, 2: 0, 3: 0}
+    single_star_texts = {1: set(), 2: set(), 3: set()}
+    multi_star_texts = {1: set(), 2: set(), 3: set()}
+    unit_texts = {r["unit_id"]: r["unit_text"] for r in conn.execute(
+        "SELECT unit_id, unit_text FROM text_units")}
     for unit_id, pairs in support.items():
         if cat.get(unit_id) == "single_label":
-            single_stars[pairs[0]["stars"]] += 1
+            stars = pairs[0]["stars"]
+            single_stars[stars] += 1
+            single_star_texts[stars].add(unit_texts.get(unit_id))
         elif cat.get(unit_id) == "multi_label":
-            multi_stars[max(p["stars"] for p in pairs)] += 1
+            stars = max(p["stars"] for p in pairs)
+            multi_stars[stars] += 1
+            multi_star_texts[stars].add(unit_texts.get(unit_id))
+    single_label_stars_unique = {t: len(single_star_texts[t]) for t in (1, 2, 3)}
+    multi_label_stars_unique = {t: len(multi_star_texts[t]) for t in (1, 2, 3)}
 
     aligned_by_label = {r["label"]: r["n"] for r in conn.execute(f"SELECT label, COUNT(*) n FROM annotations WHERE status='aligned' {and_ann} GROUP BY label", ann_args)}
     unmatched_by_label = {r["label"]: r["n"] for r in conn.execute(f"SELECT label, COUNT(*) n FROM annotations WHERE status='unmatched' {and_ann} GROUP BY label", ann_args)}
@@ -88,7 +110,9 @@ def get_stats_data(conn: sqlite3.Connection, evidence_threshold: int = 1, ranumb
         "ambiguous_by_label": ambiguous_by_label,
         "hits_by_label": hits_by_label,
         "single_label_stars": single_stars,
+        "single_label_stars_unique": single_label_stars_unique,
         "multi_label_stars": multi_stars,
+        "multi_label_stars_unique": multi_label_stars_unique,
         "annotators": annotators,
     }
 

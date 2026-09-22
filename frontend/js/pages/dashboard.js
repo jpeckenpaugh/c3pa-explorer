@@ -12,31 +12,31 @@ export async function pageDashboard() {
   const s = await fetchJSON("/api/stats");
 
   // A family card: a top-level count with sub-cards.
-  const starsHtml = (s) => `
+  const starsHtml = (s, prefix) => `
     <div class="small mt-1">
-      <span class="text-warning">&#9733;</span>&nbsp;${s[1].toLocaleString()}
-      &nbsp;<span class="text-warning">&#9733;&#9733;</span>&nbsp;${s[2].toLocaleString()}
-      &nbsp;<span class="text-warning">&#9733;&#9733;&#9733;</span>&nbsp;${s[3].toLocaleString()}
+      <span class="text-warning">&#9733;</span>&nbsp;<span id="${prefix}1">${s[1].toLocaleString()}</span>
+      &nbsp;<span class="text-warning">&#9733;&#9733;</span>&nbsp;<span id="${prefix}2">${s[2].toLocaleString()}</span>
+      &nbsp;<span class="text-warning">&#9733;&#9733;&#9733;</span>&nbsp;<span id="${prefix}3">${s[3].toLocaleString()}</span>
     </div>`;
-  const familySub = (label, value, sub, extra) => `
+  const familySub = (label, value, sub, extra, valueId) => `
     <div class="col-6">
       <div class="border rounded p-2 text-center h-100 family-tile">
-        <div class="fw-bold">${value.toLocaleString()}</div>
+        <div class="fw-bold" ${valueId ? `id="${valueId}"` : ""}>${value.toLocaleString()}</div>
         <div class="small text-muted">${label}</div>
         ${sub ? `<div class="small text-muted">${sub}</div>` : ""}
         ${extra || ""}
       </div>
     </div>`;
-  const familyCard = (title, count, subs, sub, id, href, variant = "", align = "center") => {
+  const familyCard = (title, count, subs, sub, id, href, variant = "", align = "center", countId = "") => {
     const justifyCls = align === "left" ? "justify-content-start ps-3" : align === "right" ? "justify-content-end pe-3" : "justify-content-center";
     const card = `
       <div class="card h-100 ${variant}">
         <div class="card-header py-2 d-flex align-items-center ${justifyCls} gap-2">
           <strong>${title}</strong>
-          <span class="fs-5 fw-bold">${count.toLocaleString()}</span>
+          <span class="fs-5 fw-bold" ${countId ? `id="${countId}"` : ""}>${count.toLocaleString()}</span>
         </div>
         <div class="card-body py-2">
-          <div class="row g-2">${subs.map((x) => familySub(x.label, x.value, x.sub, x.extra)).join("")}</div>
+          <div class="row g-2">${subs.map((x) => familySub(x.label, x.value, x.sub, x.extra, x.valueId)).join("")}</div>
           ${sub ? `<div class="small text-muted mt-2">${sub}</div>` : ""}
         </div>
       </div>`;
@@ -53,15 +53,15 @@ export async function pageDashboard() {
     </div>
     <div class="row g-3 mb-5">
       ${familyCard("Documents", s.documents, [
-        { label: "Complete Sentences", value: s.sentences,
+        { label: "Complete Sentences", value: s.sentences, valueId: "dashSentences",
           sub: "A single complete thought." },
-        { label: "Fragments", value: s.fragments,
+        { label: "Fragments", value: s.fragments, valueId: "dashFragmentsDoc",
           sub: "Incomplete thoughts or interjected words." },
       ], "An archive of 400 privacy policy pages from companies operating in California, captured in 2023/2024. Each page is parsed into complete sentences; the remaining text is preserved as fragments.", "docCard", "#/library", "dash-card-source", "left")}
       ${familyCard("Labels", s.label_distribution.length, [
         { label: "Human Annotators", value: s.annotators.length,
           sub: "Privacy Subject Matter Experts" },
-        { label: "Contextual Annotations", value: s.annotations,
+        { label: "Contextual Annotations", value: s.annotations, valueId: "dashAnnotations",
           sub: "Proposed labels with justifying evidence." },
       ], "Humans review the documents, proposing labels for relevant spans of text as they relate to provisions of the California Consumer Privacy Act (CCPA) and its successor, the California Privacy Rights Act (CPRA).", "labelsCard", "#/classification", "dash-card-source", "right")}
     </div>`;
@@ -74,17 +74,17 @@ export async function pageDashboard() {
     </div>
     <div class="row g-3 mb-2">
       ${familyCard("Defined Samples", s.single_label_sentences + s.multi_label_sentences, [
-        { label: "Single-label Sentences", value: s.single_label_sentences,
-          extra: starsHtml(s.single_label_stars) },
-        { label: "Multi-label Sentences", value: s.multi_label_sentences,
-          extra: starsHtml(s.multi_label_stars) },
-      ], "Sentences with direct evidence for label attribution are grouped by how many labels apply to each sentence and by the share of annotators who agree on that evidence.", "definedCard", "#/samples", "dash-card-derived", "left")}
+        { label: "Single-label Sentences", value: s.single_label_sentences, valueId: "dashSingle",
+          extra: starsHtml(s.single_label_stars, "dashSingleStar") },
+        { label: "Multi-label Sentences", value: s.multi_label_sentences, valueId: "dashMulti",
+          extra: starsHtml(s.multi_label_stars, "dashMultiStar") },
+      ], "Sentences with direct evidence for label attribution are grouped by how many labels apply to each sentence and by the share of annotators who agree on that evidence.", "definedCard", "#/samples", "dash-card-derived", "left", "dashDefined")}
       ${familyCard("Undefined Samples", s.unlabeled_sentences + s.fragments, [
-        { label: "Null-label Sentences", value: s.unlabeled_sentences,
+        { label: "Null-label Sentences", value: s.unlabeled_sentences, valueId: "dashNull",
           sub: "Annotations yielded weak labeling evidence." },
-        { label: "Fragments", value: s.fragments,
+        { label: "Fragments", value: s.fragments, valueId: "dashFragmentsUndefined",
           sub: "Incomplete sentences skip labeling analysis." },
-      ], "Failing to find evidence for label attribution does not mean no label can apply. Absence of evidence is not guilt &mdash; it simply means the supplied evidence does not suggest a correlation.", "undefinedCard", "#/samples?view=fragments", "dash-card-derived", "right")}
+      ], "Failing to find evidence for label attribution does not mean no label can apply. Absence of evidence is not guilt &mdash; it simply means the supplied evidence does not suggest a correlation.", "undefinedCard", "#/samples?view=fragments", "dash-card-derived", "right", "dashUndefined")}
     </div>
     <div class="bg-white rounded py-2 px-3 text-muted mb-3 shadow dash-underdefined-note" style="font-size:16px">
       Depending on the configured evidence threshold and support configurations, some defined
@@ -98,7 +98,15 @@ export async function pageDashboard() {
       ${sourceHtml}
       <div class="text-center py-1 mb-3">
         <div class="mx-auto dash-center-box" style="position:relative;z-index:10;max-width:520px;background:rgba(255,255,255,0.9);padding:.45rem .75rem;border-radius:.3rem;border:2px solid #dee2e6;box-shadow:0 .5rem 1.25rem rgba(0,0,0,.45);font-size:16px">
-          Each sentence is evaluated against the supplied annotations, seeking specific evidence to point it at one or more labels.
+          <strong><u>Sentences</u></strong> are cross-referenced against <strong><u>Annotations</u></strong>; matched pairings create [ <strong><u>Sentence</u></strong> / <strong><u>Label</u></strong> ] <strong><u style="color:#0d6efd">Samples</u></strong>.
+          <div class="d-flex align-items-center justify-content-center gap-2 mt-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Count mode">
+              <input type="radio" class="btn-check" name="dashCountMode" id="dashModeTotal" value="total" autocomplete="off" checked>
+              <label class="btn btn-outline-secondary" for="dashModeTotal">Total</label>
+              <input type="radio" class="btn-check" name="dashCountMode" id="dashModeUnique" value="unique" autocomplete="off">
+              <label class="btn btn-outline-secondary" for="dashModeUnique">Unique</label>
+            </div>
+          </div>
         </div>
       </div>
       ${samplesHtml}
@@ -200,6 +208,53 @@ export async function pageDashboard() {
   window._dashFlowAnimated = false;
   drawFlowArrows();
   window.addEventListener("resize", drawFlowArrows);
+
+  // ---- Total | Unique count toggle ------------------------------------------
+  // "Unique" = distinct unit text globally (repeated sentences/fragments, and
+  // duplicate annotation spans, collapse). Only the value-bearing elements
+  // change; the star ratings, documents, labels and annotator counts do not.
+  const countMap = {
+    dashSentences: { total: s.sentences, unique: s.unique_sentences },
+    dashFragmentsDoc: { total: s.fragments, unique: s.unique_fragments },
+    dashFragmentsUndefined: { total: s.fragments, unique: s.unique_fragments },
+    dashAnnotations: { total: s.annotations, unique: s.unique_annotations },
+    dashDefined: {
+      total: s.single_label_sentences + s.multi_label_sentences,
+      unique: s.unique_defined_samples,
+    },
+    dashSingle: { total: s.single_label_sentences, unique: s.unique_single_label_sentences },
+    dashMulti: { total: s.multi_label_sentences, unique: s.unique_multi_label_sentences },
+    dashSingleStar1: { total: s.single_label_stars[1], unique: s.single_label_stars_unique[1] },
+    dashSingleStar2: { total: s.single_label_stars[2], unique: s.single_label_stars_unique[2] },
+    dashSingleStar3: { total: s.single_label_stars[3], unique: s.single_label_stars_unique[3] },
+    dashMultiStar1: { total: s.multi_label_stars[1], unique: s.multi_label_stars_unique[1] },
+    dashMultiStar2: { total: s.multi_label_stars[2], unique: s.multi_label_stars_unique[2] },
+    dashMultiStar3: { total: s.multi_label_stars[3], unique: s.multi_label_stars_unique[3] },
+    dashUndefined: {
+      total: s.unlabeled_sentences + s.fragments,
+      unique: s.unique_unlabeled_sentences + s.unique_fragments,
+    },
+    dashNull: { total: s.unlabeled_sentences, unique: s.unique_unlabeled_sentences },
+  };
+
+  let countMode = "total";
+  function applyCountMode(nextMode) {
+    if (nextMode === countMode) return;
+    countMode = nextMode;
+    const unique = countMode === "unique";
+    for (const [id, v] of Object.entries(countMap)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.classList.remove("dash-count-flip");
+      void el.offsetWidth; // restart the fade
+      el.textContent = (unique ? v.unique : v.total).toLocaleString();
+      el.classList.add("dash-count-flip");
+    }
+  }
+
+  for (const radio of document.querySelectorAll('input[name="dashCountMode"]')) {
+    radio.addEventListener("change", () => applyCountMode(radio.value));
+  }
 
   const transitionBadge = (badgeId, newText) => {
     const badgeEl = document.getElementById(badgeId);

@@ -65,14 +65,30 @@ export function getStatsData(db, { evidenceThreshold = 1, ranumbs = null } = {})
     documents: one("SELECT COUNT(*) FROM documents"),
     units: one("SELECT COUNT(*) FROM text_units"),
     sentences: kinds.sentence ?? 0,
+    unique_sentences: one("SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence'"),
     fragments: kinds.fragment ?? 0,
+    unique_fragments: one("SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='fragment'"),
     annotations: one(`SELECT COUNT(*) FROM annotations ${whereAnn}`, annArgs),
+    unique_annotations: one(`SELECT COUNT(DISTINCT text) FROM annotations ${whereAnn}`, annArgs),
     aligned: one(`SELECT COUNT(*) FROM annotations WHERE status='aligned' ${andAnn}`, annArgs),
     unmatched: one(`SELECT COUNT(*) FROM annotations WHERE status='unmatched' ${andAnn}`, annArgs),
     ambiguous: one(`SELECT COUNT(*) FROM annotations WHERE status='ambiguous' ${andAnn}`, annArgs),
     single_label_sentences: cats.single_label ?? 0,
+    unique_single_label_sentences: one(
+      "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' AND label_category='single_label'"
+    ),
     multi_label_sentences: cats.multi_label ?? 0,
+    unique_multi_label_sentences: one(
+      "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' AND label_category='multi_label'"
+    ),
     unlabeled_sentences: cats.unlabeled ?? 0,
+    unique_unlabeled_sentences: one(
+      "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' AND label_category='unlabeled'"
+    ),
+    unique_defined_samples: one(
+      "SELECT COUNT(DISTINCT unit_text) FROM text_units WHERE unit_kind='sentence' "
+      + "AND label_category IN ('single_label','multi_label')"
+    ),
     high_confidence_single: one(
       "SELECT COUNT(*) FROM text_units WHERE label_category='single_label' AND annotator_count>=2"
     ),
@@ -98,11 +114,24 @@ export function getStatsData(db, { evidenceThreshold = 1, ranumbs = null } = {})
   }
   const singleStars = { 1: 0, 2: 0, 3: 0 };
   const multiStars = { 1: 0, 2: 0, 3: 0 };
+  const singleStarTexts = { 1: new Set(), 2: new Set(), 3: new Set() };
+  const multiStarTexts = { 1: new Set(), 2: new Set(), 3: new Set() };
+  const textMap = new Map();
+  for (const r of query(db, "SELECT unit_id, unit_text FROM text_units")) textMap.set(r.unit_id, r.unit_text);
   for (const [unitId, pairs] of support) {
     const c = cat.get(unitId);
-    if (c === "single_label") singleStars[pairs[0].stars] += 1;
-    else if (c === "multi_label") multiStars[Math.max(...pairs.map((p) => p.stars))] += 1;
+    if (c === "single_label") {
+      const st = pairs[0].stars;
+      singleStars[st] += 1;
+      singleStarTexts[st].add(textMap.get(unitId));
+    } else if (c === "multi_label") {
+      const st = Math.max(...pairs.map((p) => p.stars));
+      multiStars[st] += 1;
+      multiStarTexts[st].add(textMap.get(unitId));
+    }
   }
+  const singleStarsUnique = { 1: singleStarTexts[1].size, 2: singleStarTexts[2].size, 3: singleStarTexts[3].size };
+  const multiStarsUnique = { 1: multiStarTexts[1].size, 2: multiStarTexts[2].size, 3: multiStarTexts[3].size };
 
   const alignedByLabel = {};
   for (const r of query(db, `SELECT label, COUNT(*) n FROM annotations WHERE status='aligned' ${andAnn} GROUP BY label`, annArgs)) {
@@ -133,7 +162,9 @@ export function getStatsData(db, { evidenceThreshold = 1, ranumbs = null } = {})
     ambiguous_by_label: ambiguousByLabel,
     hits_by_label: hitsByLabel,
     single_label_stars: singleStars,
+    single_label_stars_unique: singleStarsUnique,
     multi_label_stars: multiStars,
+    multi_label_stars_unique: multiStarsUnique,
     annotators,
   };
 }

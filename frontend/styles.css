@@ -824,3 +824,10 @@ body { background: #f6f7f9; }
 }
 
 
+
+/* Dashboard Total|Unique count toggle transition */
+@keyframes dash-count-flip {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.dash-count-flip { animation: dash-count-flip 0.35s ease-in-out; }
