@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import initSqlJs from "../browser/vendor/sql.js/sql-wasm.js";
 import { extractSingleDbFromTarGz } from "../browser/js/core/snapshot-targz.js";
@@ -90,6 +91,38 @@ test("export: build produces a parseable ZIP with meta.json + split files", asyn
 
   assert.equal(meta.counts.train + meta.counts.eval + meta.counts.test, meta.total);
   assert.equal(meta.selected_fields.length, 6, "default fields");
+});
+
+test("export: every ZIP entry carries the CRC-32 of its uncompressed payload", async () => {
+  const params = parseUnitParams({ subset: "DB", limit: "20", offset: "0" });
+  const { zip } = await createExportHandler(db).download(
+    params,
+    { format: "csv", split: true, splitTrain: 80, splitEval: 10, splitTest: 10, seed: 42, stratify: true }
+  );
+  const b = new Uint8Array(zip);
+  let eocd = -1;
+  for (let i = b.length - 22; i >= 0; i--) {
+    if (b[i] === 0x50 && b[i + 1] === 0x4b && b[i + 2] === 0x05 && b[i + 3] === 0x06) { eocd = i; break; }
+  }
+  assert.ok(eocd >= 0, "EOCD present");
+  const u16 = (o) => b[o] | (b[o + 1] << 8);
+  const u32 = (o) => b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24);
+  const cdCount = u16(eocd + 10);
+  let ptr = u32(eocd + 16);
+  for (let i = 0; i < cdCount; i++) {
+    const storedCrc = u32(ptr + 16);
+    const nameLen = u16(ptr + 28);
+    const compSize = u32(ptr + 20);
+    const localOffset = u32(ptr + 42);
+    const nameBytes = b.slice(ptr + 46, ptr + 46 + nameLen);
+    const name = new TextDecoder().decode(nameBytes);
+    const lhNameLen = u16(localOffset + 26);
+    const lhExtraLen = u16(localOffset + 28);
+    const dataStart = localOffset + 30 + lhNameLen + lhExtraLen;
+    const inflated = await inflateRaw(new Uint8Array(b.slice(dataStart, dataStart + compSize)));
+    assert.equal(zlib.crc32(inflated) >>> 0, storedCrc >>> 0, `CRC-32 mismatch for ${name}`);
+    ptr += 46 + nameLen + u16(ptr + 30) + u16(ptr + 32);
+  }
 });
 
 test("export: CSV header exactly matches FastAPI default field list", async () => {
