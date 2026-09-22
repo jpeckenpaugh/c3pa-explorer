@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pickLatest, sha256Hex, verifyEnvelope, verifyDb } from "../browser/js/core/published.js";
-import { extractSingleDbFromTarGz, isGzipBytes } from "../browser/js/core/snapshot-targz.js";
+import { pickLatest, sha256Hex, verifyEnvelope, verifyDb } from "../frontend/sqljs/js/core/published.js";
+import { extractSingleDbFromTarGz, isGzipBytes } from "../frontend/sqljs/js/core/snapshot-targz.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);

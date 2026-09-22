@@ -8,14 +8,14 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
-import initSqlJs from "../browser/vendor/sql.js/sql-wasm.js";
-import { extractSingleDbFromTarGz } from "../browser/js/core/snapshot-targz.js";
-import { createExportHandler } from "../browser/js/query/export-service.js";
-import { parseUnitParams } from "../browser/js/query/filters.js";
+import initSqlJs from "../frontend/sqljs/vendor/sql.js/sql-wasm.js";
+import { extractSingleDbFromTarGz } from "../frontend/sqljs/js/core/snapshot-targz.js";
+import { createExportHandler } from "../frontend/sqljs/js/query/export-service.js";
+import { parseUnitParams } from "../frontend/sqljs/js/query/filters.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
-const SQLJS_DIR = path.join(ROOT, "browser", "vendor", "sql.js");
+const SQLJS_DIR = path.join(ROOT, "frontend", "sqljs", "vendor", "sql.js");
 const builds = JSON.parse(fs.readFileSync(path.join(ROOT, "builds.json"), "utf8"));
 const entry = builds.builds[0];
 

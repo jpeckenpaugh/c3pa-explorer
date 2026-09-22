@@ -33,15 +33,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import initSqlJs from "../browser/vendor/sql.js/sql-wasm.js";
-import { createQuery } from "../browser/js/query/sqlite-bridge.js";
+import initSqlJs from "../frontend/sqljs/vendor/sql.js/sql-wasm.js";
+import { createQuery } from "../frontend/sqljs/js/query/sqlite-bridge.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
 const DB_PATH = path.join(ROOT, "data", "explorer.db");
 const EXPECTED_DIR = path.join(HERE, "expected");
 const MANIFEST_PATH = path.join(HERE, "fixtures.manifest.json");
-const SQLJS_DIR = path.join(ROOT, "browser", "vendor", "sql.js");
+const SQLJS_DIR = path.join(ROOT, "frontend", "sqljs", "vendor", "sql.js");
 
 // ---- canonical comparison --------------------------------------------------
 

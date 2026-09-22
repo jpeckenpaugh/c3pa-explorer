@@ -1,2 +1,2 @@
 /* Compatibility shim for cached browser sessions */
-import "/static/js/main.js";
+import "./js/main.js";

@@ -3,6 +3,7 @@
 
 import { $ } from "../core/utils.js";
 import { fetchJSON } from "../core/api.js";
+import { getEngine } from "../core/engine.js";
 
 let exportParamsBuilder = () => new URLSearchParams();
 let resetSampleConfig = null;
@@ -75,7 +76,8 @@ export function wireExportModal() {
         anchorHref = URL.createObjectURL(blob);
         anchorName = res.file || "c3pa_export.zip";
       } else {
-        anchorHref = `/api/export?${url}`;
+        const { apiBase } = getEngine();
+        anchorHref = `${apiBase || ""}/api/export?${url}`;
       }
       const a = document.createElement("a");
       a.href = anchorHref;

@@ -30,7 +30,7 @@ OUT = os.path.join(NOTEBOOK_DIR, "build_snapshot_colab.ipynb")
 
 # Agreed snapshot schema version. The SAME literal must live in exactly two
 # places that must agree: this generator (emitted into the notebook's manifest
-# cell) and browser/js/core/snapshot-version.js (Phase 2 creates it).
+# cell) and frontend/sqljs/js/core/snapshot-version.js (Phase 2 creates it).
 SNAPSHOT_SCHEMA_VERSION = "c3pa-explorer-snapshot-v1"
 
 VENDORED_FILES = [
@@ -212,7 +212,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-# Agreed snapshot schema version -- must equal browser/js/core/snapshot-version.js.
+# Agreed snapshot schema version -- must equal frontend/sqljs/js/core/snapshot-version.js.
 SNAPSHOT_SCHEMA_VERSION = "__SNAPSHOT_SCHEMA_VERSION__"
 # Baked at GENERATION time by scripts/build_colab_notebook.py (C3PA_EXPLORER_REV
 # env override, else repo git HEAD, else "vendored-cells" + timestamp).

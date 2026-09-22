@@ -245,9 +245,10 @@ function httpError(status, detail) {
 
 function createWorkerClient() {
   // Relative to the page URL so the app works from a repo subpath
-  // (https://<user>.github.io/<repo>/) as well as from localhost root —
-  // §7b.3 CI/CD deployment requirement.
-  const worker = new Worker(new URL("browser/js/core/worker.js", location.href).href);
+  // (https://<user>.github.io/<repo>/) as well as from localhost root.
+  // The engine lives under frontend/sqljs/, so the worker script is at
+  // sqljs/js/core/worker.js relative to the page.
+  const worker = new Worker(new URL("sqljs/js/core/worker.js", location.href).href);
   let nextId = 0;
   let terminalError = null;
   const pending = new Map();

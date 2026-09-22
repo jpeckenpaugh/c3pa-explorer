@@ -1,27 +1,59 @@
-/* C3PA Explorer browser edition — boot script.
+/* C3PA Explorer — sql.js engine boot script.
  *
- * Injected by browser/serve.py into the served index.html BEFORE the SPA's
- * <script type="module" src="/static/js/main.js"> (an in-memory rewrite at
- * request time — the file on disk is never touched, so the FastAPI-served page
- * stays byte-identical, §7b.2). Module scripts run in document order, so this
- * module fully evaluates before main.js, hence before the SPA's first
- * fetchJSON. The bridge is installed on globalThis SYNCHRONOUSLY in this
- * module's body, and its fetchJSON awaits an internal `ready` promise that is
- * resolved only after worker-open → manifest.read → validateManifest →
- * integrity.check succeed (§7b.2): page renders queue, never fail.
+ * Loaded directly by frontend/index.html (it IS the shell) immediately before
+ * the SPA's js/main.js. Module scripts run in document order, so this module
+ * fully evaluates before main.js, hence before the SPA's first fetchJSON. The
+ * bridge is installed on globalThis SYNCHRONOUSLY in this module's body, and
+ * its fetchJSON awaits an internal `ready` promise that is resolved only after
+ * worker-open → manifest.read → validateManifest → integrity.check succeed:
+ * page renders queue, never fail.
  *
- * The overlay (file-picker + drop zone + loading/error states) lives here, not
- * in the shell (§7a.4). #navDownload is hidden in browser mode because the
- * export modal uses raw fetch/anchor (Phase 3, §7b.7).
+ * Engine gate: an explicit user choice (nav DB icon) wins; otherwise a
+ * same-origin FastAPI backend is preferred (so `./run.sh` lands in backend
+ * mode), with the sql.js (WASM) engine as the default on static hosts like
+ * GitHub Pages. In FastAPI mode this module is skipped and fetchJSON uses a
+ * real fetch instead.
+ *
+ * Boot: restore the snapshot cached in IndexedDB → else auto-load the newest
+ * published snapshot (builds.json + snapshots/ on the same origin) → else show
+ * the file-picker overlay. The overlay (file-picker + drop zone + loading/error
+ * states) lives here, not in the shell.
  */
 "use strict";
 
+import { getStoredEngine } from "../../../js/core/engine.js";
 import { SNAPSHOT_SCHEMA_VERSION } from "./snapshot-version.js";
 import { createBridge, validateManifest } from "./bridge.js";
 import { saveSnapshot, loadSnapshot } from "./snapshot-storage.js";
 import { isGzipBytes, extractSingleDbFromTarGz } from "./snapshot-targz.js";
 import { fetchCatalog, pickLatest, fetchArchiveBytes, verifyEnvelope, verifyDb } from "./published.js";
 
+// ---- engine gate -----------------------------------------------------------
+// Pick the query engine: an explicit user choice (nav DB icon) always wins.
+// Without one, prefer a same-origin FastAPI backend (so `./run.sh` lands
+// straight in backend mode), and fall back to the sql.js (WASM) engine on
+// static hosts like GitHub Pages. In FastAPI mode the sql.js runtime is
+// skipped entirely: no worker, no overlay, no snapshot load — fetchJSON in
+// frontend/js/core/api.js uses a real fetch against the backend.
+async function resolveEngineMode() {
+  const stored = getStoredEngine();
+  if (stored) return stored.mode;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1500);
+  try {
+    const res = await fetch("/api/stats", { signal: controller.signal, cache: "no-store" });
+    return res.ok ? "fastapi" : "sqljs";
+  } catch {
+    return "sqljs";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const engineMode = await resolveEngineMode();
+if (engineMode !== "sqljs") {
+  globalThis.c3paSqljsSkipped = true;
+} else {
 const browser = createBridge();
 globalThis.c3paBrowser = browser;
 
@@ -44,7 +76,7 @@ function versionMismatchMessage(actual) {
 (function injectStyles() {
   const style = document.createElement("style");
   style.textContent = `
-.c3pa-boot-overlay{position:fixed;inset:0;z-index:2000;background:#0b1220;display:flex;align-items:center;justify-content:center}
+.c3pa-boot-overlay{position:fixed;top:56px;left:0;right:0;bottom:0;z-index:2000;background:#0b1220;display:flex;align-items:center;justify-content:center}
 .c3pa-boot-card{max-width:34rem;background:#101a2a;border:1px solid #2c3a52;border-radius:12px;color:#e9edf1;padding:28px 30px;text-align:center}
 .c3pa-boot-title{font-size:1.35rem;font-weight:700}
 .c3pa-boot-sub{color:#9aa9c3;margin-top:8px;font-size:.93rem}
@@ -239,6 +271,7 @@ async function openSnapshotBytes(bytes, displayName, { persist = false } = {}) {
 
     if (persist) await saveSnapshot(displayName, bytes);
 
+    browser.snapshot = { name: displayName, manifest: verdict.manifest, integrity };
     browser.resolveReady({ error: null });
     finishSuccess(verdict.manifest);
   } catch (error) {
@@ -255,9 +288,35 @@ async function maybeRestoreSnapshot() {
   return true;
 }
 
-// Boot: try to restore the previously saved snapshot; if none, the picker
-// stays up (the overlay is the default UI). The first fetchJSON is gated on
-// `ready`, so the page queues either way. Concurrently, probe for a published
-// snapshot so the "load published" button is ready by the time the user looks.
-maybeRestoreSnapshot();
-wirePublishedButton();
+/** Auto-load the newest published snapshot: download → verify → open. Falls
+ *  back to the picker overlay (and a retry button) on any failure. */
+async function autoLoadPublished() {
+  const catalog = await fetchCatalog();
+  const entry = pickLatest(catalog);
+  if (!entry) return false;
+  setStatus(`Auto-loading published snapshot ${entry.version || ""}&hellip;`, "loading");
+  try {
+    const archiveBytes = await fetchArchiveBytes(entry);
+    if (!(await verifyEnvelope(archiveBytes, entry))) throw new Error("envelope hash mismatch");
+    const dbBytes = (await extractSingleDbFromTarGz(archiveBytes)).bytes;
+    if (!(await verifyDb(dbBytes, entry))) throw new Error("database hash mismatch");
+    await openSnapshotBytes(dbBytes, entry.file, { persist: true });
+    return true;
+  } catch (error) {
+    setStatus(`Auto-load failed (${error.message})`, "error");
+    return false;
+  }
+}
+
+// Boot: restore the saved snapshot from IndexedDB, else auto-load the newest
+// published snapshot, else leave the picker overlay up (with the published
+// button wired for a manual retry). Every path resolves the bridge's `ready`
+// promise, so the SPA's first fetchJSON queues instead of failing.
+async function boot() {
+  if (await maybeRestoreSnapshot()) return;
+  if (await autoLoadPublished()) return;
+  wirePublishedButton();
+  setStatus("Choose a snapshot to begin.", "idle");
+}
+boot();
+}

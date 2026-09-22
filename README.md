@@ -65,16 +65,29 @@ labels.
 | Path | Contents |
 | :--- | :--- |
 | `backend/` | FastAPI app: `api/` routers, `services/`, `schemas/`, `core/`; pipeline in `db.py`, `extract.py`, `ingest.py`, `export.py` |
-| `frontend/` | The vanilla SPA (Bootstrap 5, no build step): `index.html`, `js/core/`, `js/components/`, `js/pages/` |
-| `browser/` | Browser-edition runtime: sql.js worker + bridge + boot, vendored `sql.js` + bootstrap, `serve.py` (localhost static server) |
-| `site/` | **Generated** GitHub Pages site (do not hand-edit; regenerate with `tools/build_site.py`) |
-| `tools/build_site.py` | Assembles `site/` from the repo source (SPA + browser runtime + snapshot) |
-| `snapshots/` | (inside `site/`) canonical snapshot `c3pa-db_v0.1_<sha8>.tar.gz` + `meta_<sha8>.md` |
+| `frontend/` | **The one SPA** (Bootstrap 5, no build step) — runs in *both* modes. `index.html`, `js/core/`, `js/components/`, `js/pages/` |
+| `frontend/sqljs/` | The sql.js engine, a component of the frontend: WASM worker + bridge + boot, the SQL query ports, vendored `sql.js` + bootstrap |
+| `site/` | **Build output only** (gitignored): assembled by `tools/build_site.py` for GitHub Pages. Never committed, never a source of truth |
+| `tools/build_site.py` | Stages `site/` from `frontend/` + the snapshot (no rewriting — `index.html` is already the shell) |
+| `tools/serve.py` | Local static server for the browser edition (WASM MIME types) |
 | `builds.json` | Snapshot registry: file, canonical URL, envelope hash, db hash, row counts |
+| `c3pa-db_*.tar.gz`, `meta_*.md` | The canonical signed snapshot + its metadata |
 | `scripts/` | `package_snapshot.py` (snapshot archive + registry), `build_colab_notebook.py` (notebook generator) |
 | `notebooks/` | `build_snapshot_colab.ipynb` — rebuild the snapshot DB on Colab |
 | `tests/` | Backend `unittest` + JS unit + browser-edition parity/bridge tests |
 | `c3pa-sentence-label-parser/` | Git submodule: the baseline parser + the C3PA dataset (needed only to rebuild the DB) |
+
+## Two engines, one frontend
+
+The SPA defaults to the **sql.js (WASM) engine**: on load it auto-loads the
+latest signed snapshot (or restores the one cached in your browser) and runs
+every query in a Web Worker — no server, no network calls after the snapshot
+download. A **DB icon** in the top nav opens a modal that shows snapshot
+details (schema version, dataset commit, hashes, integrity, row counts) and can
+switch the engine to a **FastAPI backend** — same origin, or a remote origin
+such as `http://localhost:8765` — for users who prefer a Python backend.
+The switch is persisted per-browser; the single swap point is
+`frontend/js/core/api.js`.
 
 ## Quickstart
 
@@ -100,14 +113,13 @@ Option A — the live demo (no local anything): **https://jpeckenpaugh.github.io
 Option B — locally, served statically:
 
 ```bash
-python3 browser/serve.py      # http://127.0.0.1:8011
-# or serve the generated site directory:
-cd site && python3 -m http.server 8011
+python3 tools/serve.py      # http://127.0.0.1:8011
 ```
 
-Pick the snapshot (`site/snapshots/c3pa-db_v0.1_663586da.tar.gz`) or a
-notebook-built `explorer.db`; everything runs in your browser, no network calls
-after load.
+On load the app auto-loads the published snapshot (`builds.json` +
+`snapshots/c3pa-db_v0.1_663586da.tar.gz` on the same origin); you can also pick
+a local snapshot file or a notebook-built `explorer.db` via the file picker, or
+point the DB icon at a FastAPI backend.
 
 ## Snapshot trust model
 
@@ -128,16 +140,17 @@ Rebuilding a snapshot:
 
 ## Rebuilding the site
 
-The `site/` directory is the deployable Pages artifact, assembled from this
-repo's own sources so it can never drift from the SPA/runtime:
+`site/` is a build output, not a committed folder. Regenerate it whenever you
+want to preview the exact deployable locally:
 
 ```bash
 python3 tools/build_site.py    # reads the repo root, writes site/
 ```
 
-Regenerate after changing the SPA or browser runtime, then commit `site/`. The
-Pages workflow also re-runs this and diffs against `site/` on every push to
-`main` (see `.github/workflows/pages.yml`).
+On push to `main`, the Pages workflow assembles `site/` fresh from the repo and
+deploys it — no regeneration discipline required, and no drift is possible
+because `site/` is never a second source of truth (see
+`.github/workflows/pages.yml`).
 
 ## Testing
 

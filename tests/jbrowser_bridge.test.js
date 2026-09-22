@@ -15,13 +15,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import initSqlJs from "../browser/vendor/sql.js/sql-wasm.js";
-import { parseRequestUrl, validateManifest, createBridge } from "../browser/js/core/bridge.js";
-import { SNAPSHOT_SCHEMA_VERSION } from "../browser/js/core/snapshot-version.js";
+import initSqlJs from "../frontend/sqljs/vendor/sql.js/sql-wasm.js";
+import { parseRequestUrl, validateManifest, createBridge } from "../frontend/sqljs/js/core/bridge.js";
+import { SNAPSHOT_SCHEMA_VERSION } from "../frontend/sqljs/js/core/snapshot-version.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
-const SQLJS_DIR = path.join(ROOT, "browser", "vendor", "sql.js");
+const SQLJS_DIR = path.join(ROOT, "frontend", "sqljs", "vendor", "sql.js");
 const MANIFEST_PATH = path.join(HERE, "fixtures.manifest.json");
 
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));

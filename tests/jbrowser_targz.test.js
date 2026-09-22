@@ -9,14 +9,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import initSqlJs from "../browser/vendor/sql.js/sql-wasm.js";
-import { isGzipBytes, extractSingleDbFromTarGz } from "../browser/js/core/snapshot-targz.js";
-import { validateManifest } from "../browser/js/core/bridge.js";
-import { SNAPSHOT_SCHEMA_VERSION } from "../browser/js/core/snapshot-version.js";
+import initSqlJs from "../frontend/sqljs/vendor/sql.js/sql-wasm.js";
+import { isGzipBytes, extractSingleDbFromTarGz } from "../frontend/sqljs/js/core/snapshot-targz.js";
+import { validateManifest } from "../frontend/sqljs/js/core/bridge.js";
+import { SNAPSHOT_SCHEMA_VERSION } from "../frontend/sqljs/js/core/snapshot-version.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
-const SQLJS_DIR = path.join(ROOT, "browser", "vendor", "sql.js");
+const SQLJS_DIR = path.join(ROOT, "frontend", "sqljs", "vendor", "sql.js");
 
 // Canonical archive name from builds.json (db short-hash prefix).
 const builds = JSON.parse(fs.readFileSync(path.join(ROOT, "builds.json"), "utf8"));

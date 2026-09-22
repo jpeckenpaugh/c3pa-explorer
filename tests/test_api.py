@@ -1,10 +1,14 @@
 import csv
 import io
 import json
+import os
 import unittest
 import zipfile
 from fastapi.testclient import TestClient
 from backend.main import app
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATASET_HTMLS = os.path.join(ROOT, "c3pa-sentence-label-parser", "C3PA_Dataset", "Htmls")
 
 
 class TestAPI(unittest.TestCase):
@@ -69,6 +73,10 @@ class TestAPI(unittest.TestCase):
         data = res.json()
         self.assertIn("annotations", data)
 
+    @unittest.skipUnless(
+        os.path.isdir(DATASET_HTMLS),
+        "dataset HTML files not present (submodule) — /html reads them from disk",
+    )
     def test_document_html(self):
         res = self.client.get("/api/documents/DB_1/html")
         self.assertEqual(res.status_code, 200)

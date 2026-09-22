@@ -4,12 +4,14 @@
 import { $ } from "./core/utils.js";
 import { router } from "./core/router.js";
 import { wireExportModal } from "./components/exportModal.js";
+import { wireDatabaseModal } from "./components/dbModal.js";
 import { initUnitNavControls } from "./components/unitModal.js";
 import { initGlobalSearch } from "./components/searchModal.js";
 import { handleNavConfigureClick, handleNavDownloadClick } from "./pages/units.js";
 
 function initApp() {
   wireExportModal();
+  wireDatabaseModal();
   initUnitNavControls();
   initGlobalSearch();
 
