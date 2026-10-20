@@ -3,7 +3,7 @@
     {
       "version": "v0.1",
       "file": "c3pa-db_v0.1_663586da.tar.gz",
-      "url": "https://github.com/jpeckenpaugh/c3pa-explorer/snapshots/c3pa-db_v0.1_663586da.tar.gz",
+      "url": "https://raw.githubusercontent.com/jpeckenpaugh/c3pa-explorer/main/c3pa-db_v0.1_663586da.tar.gz",
       "envelope_hash": "989b73dff668c9dfbabea09f6f717eee3865502fa4c633d7a795c82b1d1b64a2",
       "db_sha256": "663586da245221c3925f656dfe2427b46919addce640a19e725ef2e05212103b",
       "db_short": "663586da",

@@ -76,12 +76,21 @@ def code(source):
 def writefile_cell(relpath, content):
     """Emit a %%writefile cell; body is byte-faithful to the vendored file.
 
-    A cell with no body after the magic line (empty file, e.g.
-    backend/__init__.py) writes an empty file when executed.
+    Empty files (backend/__init__.py) cannot use %%writefile: IPython rejects a
+    cell whose body is only the magic line. Emit an explicit empty write instead.
     """
+    if not content:
+        lines = [
+            "# Empty vendored module -- %%writefile rejects an empty cell body.\n",
+            "from pathlib import Path\n",
+            "Path(%r).parent.mkdir(parents=True, exist_ok=True)\n" % relpath,
+            "Path(%r).write_text(\"\", encoding=\"utf-8\")\n" % relpath,
+            "print(\"wrote %s (empty)\")\n" % relpath,
+        ]
+        return {"cell_type": "code", "metadata": {}, "source": lines}
+
     lines = ["%%writefile " + relpath + "\n"]
-    if content:
-        lines.extend(content.splitlines(keepends=True))
+    lines.extend(content.splitlines(keepends=True))
     return {"cell_type": "code", "metadata": {}, "source": lines}
 
 
@@ -105,6 +114,21 @@ browser edition. The notebook is regenerated from this checkout by
 the dataset is shallow-cloned at HEAD, so `dataset_commit` (recorded in the
 manifest) pins data provenance.
 
+**Verification status:** the committed copy was executed as a **partial smoke
+build** with `MAX_DOCS = 5` (5 of 400 documents). See **Last verified** below
+for the runtime, dataset commit, schema version, code revision, and counts.
+For a full-corpus build set `MAX_DOCS = None` in the ingest cell.
+
+**Regeneration workflow:**
+
+1. `python3 scripts/build_colab_notebook.py` -- rebuild vendored cells from `backend/`.
+2. `python3 scripts/run_colab_smoke.py` -- execute a 5-document smoke build and
+   stamp **Last verified** (dev-only; needs `nbclient` + `ipykernel`).
+3. Commit the executed notebook (text outputs only; never commit `explorer.db`,
+   the dataset, or other large binaries).
+4. `python3 scripts/check_notebook_sync.py` -- source-only drift gate, also run
+   by `tests.sh` in CI. Full notebook execution is not a required CI step.
+
 **Dataset layout note:** `git clone --depth 1` of
 `MaazBinMusa/C3PA_Dataset.git` provides `Crawl/db.csv` + `Crawl/ws.csv` as
 flat regular files (no submodule). The dataset's own README claims `Crawl/`
@@ -117,7 +141,16 @@ pulls `soupsieve` + `typing-extensions`). Extraction uses stdlib
 
 **Expected full-corpus counts** (derived live from the built DB, not
 hardcoded): 400 documents / 121,287 units / 84,985 sentences / 36,302
-fragments / 45,121 annotations.
+fragments / 45,121 annotations. These are reference values for a full build;
+they are **not** the 5-document smoke-build counts shown in this executed copy.
+""".strip() + "\n"
+
+MD_LAST_VERIFIED = """
+## Last verified
+
+> **Not yet executed.** Run `scripts/run_colab_smoke.py` after regenerating to
+> execute a 5-document smoke build and stamp this cell with the runtime,
+> dataset commit, schema version, code revision, and MAX_DOCS.
 """.strip() + "\n"
 
 CELL_CLONE = """
@@ -128,7 +161,12 @@ import sys
 
 assert sys.version_info >= (3, 10), "vendored backend requires Python >= 3.10 (PEP 604 `str | None` annotations)"
 
-os.chdir("/content")
+# Colab uses /content. The env override lets the local smoke runner execute the
+# exact same cells in a throwaway directory.
+WORKDIR = os.environ.get("C3PA_COLAB_WORKDIR", "/content")
+os.makedirs(WORKDIR, exist_ok=True)
+os.chdir(WORKDIR)
+print("workdir:", os.getcwd())
 
 DATASET = "C3PA_Dataset"
 DATASET_URL = "https://github.com/MaazBinMusa/C3PA_Dataset.git"
@@ -158,17 +196,18 @@ print("dataset top-level:", sorted(os.listdir(DATASET)))
 """.strip() + "\n"
 
 CELL_MKDIR = """
-# 2. Prepare /content/backend for the vendored files (belt-and-braces)
+# 2. Prepare backend/ for the vendored files (belt-and-braces)
 import os
-os.makedirs("/content/backend", exist_ok=True)
-print("backend/ ready:", os.path.isdir("/content/backend"))
+os.makedirs("backend", exist_ok=True)
+print("backend/ ready:", os.path.isdir("backend"))
 """.strip() + "\n"
 
 CELL_PIP = """
 # 3. Only build-time dep: beautifulsoup4, pinned (matches the recorded baseline;
 # unpinned bs4 could drift counts). It pulls soupsieve + typing-extensions.
 # Extraction uses stdlib html.parser only -- no lxml/html5lib, spacy, or fastapi.
-!pip install -q beautifulsoup4==4.15.0
+import sys
+!{sys.executable} -m pip install -q beautifulsoup4==4.15.0
 import bs4
 print("bs4", bs4.__version__)
 """.strip() + "\n"
@@ -176,11 +215,11 @@ print("bs4", bs4.__version__)
 CELL_INGEST = """
 # 4. Build the snapshot DB with the UNCHANGED pipeline.
 #
-# Full corpus by default. For a QUICK SMOKE BUILD set MAX_DOCS, e.g.:
-#   MAX_DOCS = 5
+# The committed copy was executed as a SMOKE BUILD: MAX_DOCS = 5 of 400 docs.
+# For the full corpus set MAX_DOCS = None.
 # When set, --max-docs N is passed to ingest and the manifest is flagged
 # partial (counts are then for the partial slice, not the full corpus).
-MAX_DOCS = None
+MAX_DOCS = 5
 PARTIAL = MAX_DOCS is not None
 
 import os
@@ -318,9 +357,16 @@ CELL_DOWNLOAD = """
 # path for large files. This cell never mounts Drive (it blocks on an
 # interactive auth prompt); an already-mounted Drive is picked up if present.
 import os
-from google.colab import files
 
-files.download("explorer.db")
+try:
+    from google.colab import files
+except ImportError:          # local smoke runner: no browser download
+    files = None
+
+if files is not None:
+    files.download("explorer.db")
+else:
+    print("Not running in Google Colab; snapshot left at:", os.path.abspath("explorer.db"))
 
 MOUNT_DRIVE = False   # set True to also copy to MyDrive/c3pa_explorer/
 if MOUNT_DRIVE and os.path.exists("/content/drive/MyDrive"):
@@ -335,22 +381,31 @@ else:
 """.strip() + "\n"
 
 
-def main():
-    code_rev = resolve_code_rev()
-    git_head = git_head_or_none()
+def build_cells(code_rev, verified_md=None):
+    """Return the notebook cell list for a given baked code revision.
 
+    `verified_md` lets the smoke runner replace the placeholder Last verified
+    markdown after execution without touching the generator templates.
+    """
     manifest_cell = CELL_MANIFEST_TEMPLATE.replace(
         "__SNAPSHOT_SCHEMA_VERSION__", SNAPSHOT_SCHEMA_VERSION).replace(
         "__CODE_REV__", json.dumps(code_rev)[1:-1])  # plain literal, no escaping surprises
-    md_title = MD_TITLE
 
-    cells = [md(md_title), code(CELL_CLONE), code(CELL_MKDIR)]
+    cells = [md(MD_TITLE), md(verified_md if verified_md is not None else MD_LAST_VERIFIED),
+             code(CELL_CLONE), code(CELL_MKDIR)]
     for rel in VENDORED_FILES:
         cells.append(writefile_cell(rel, read(rel)))
     cells.append(code(CELL_PIP))
     cells.append(code(CELL_INGEST))
     cells.append(code(manifest_cell))
     cells.append(code(CELL_DOWNLOAD))
+    return cells
+
+
+def main():
+    code_rev = resolve_code_rev()
+    git_head = git_head_or_none()
+    cells = build_cells(code_rev)
 
     notebook = {
         "nbformat": 4,

@@ -1,40 +1,89 @@
-name: Deploy C3PA Explorer to Pages
+name: CI and Deploy to Pages
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
+  schedule:
+    # Weekly deep snapshot verification (the PR path only does a HEAD check).
+    - cron: "17 4 * * 1"
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
-  build:
+  test:
+    name: test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build deterministic fixture database
+        run: python tests/make_fixture_db.py --out data/explorer.db
+
+      - name: Verify canonical snapshot URL (HEAD)
+        if: github.event_name == 'pull_request'
+        run: python scripts/verify_snapshot.py --mode head
+
+      - name: Verify canonical snapshot bytes and hashes
+        if: github.event_name != 'pull_request'
+        run: python scripts/verify_snapshot.py --mode full
+
+      - name: Run full test suite
+        env:
+          C3PA_DB_PATH: data/explorer.db
+          PYTHON: python
+        run: ./tests.sh
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Assemble the static site
-        run: python3 tools/build_site.py
+        run: python tools/build_site.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
-  deploy:
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

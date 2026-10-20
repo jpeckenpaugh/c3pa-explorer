@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Phase 0 parity fixture generator (FastAPI side).
 
-Runs the real FastAPI routers via TestClient against data/explorer.db and
-writes one file of the RAW response bytes (utf-8 JSON) per manifest entry to
-tests/expected/ (gitignored). Both the params list and the derived-id rules
-are shared with tests/jbrowser_parity.test.js via tests/fixtures.manifest.json.
+Runs the real FastAPI routers via TestClient against the configured DB
+(`C3PA_DB_PATH`, default `data/explorer.db`) and writes one file of the RAW
+response bytes (utf-8 JSON) per manifest entry to tests/expected/ (gitignored).
+Both the params list and the derived-id rules are shared with
+tests/jbrowser_parity.test.js via tests/fixtures.manifest.json.
 
 WAL hygiene (section 5a.B2): this generator FIRST opens the DB and runs
 `PRAGMA wal_checkpoint(TRUNCATE)` with NO writes (db.py flips journal_mode to
@@ -12,7 +13,9 @@ WAL on connect, so -wal may otherwise hold pages invisible to the raw byte
 load used by sql.js). After the checkpoint nothing writes to the DB, so the
 sql.js byte-read and the Python reads see the same complete file.
 
-Skips (exit 0 with a message) when data/explorer.db is absent.
+Local runs skip (exit 0) with a clear message when the DB is absent. In CI
+(`CI` or `GITHUB_ACTIONS` set) a missing DB is a hard failure: skipping would
+silently drop the strongest FastAPI/sql.js parity evidence.
 """
 
 import json
@@ -24,14 +27,24 @@ import urllib.parse
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-DB_PATH = os.path.join(ROOT, "data", "explorer.db")
+DB_PATH = os.path.abspath(
+    os.environ.get("C3PA_DB_PATH") or os.path.join(ROOT, "data", "explorer.db")
+)
 MANIFEST_PATH = os.path.join(ROOT, "tests", "fixtures.manifest.json")
 EXPECTED_DIR = os.path.join(ROOT, "tests", "expected")
 
 
 def main() -> int:
     if not os.path.exists(DB_PATH):
-        print(f"Skipping fixture generation: {DB_PATH} not found (snapshot build is a hard dependency).")
+        message = (
+            f"Fixture DB not found: {DB_PATH}\n"
+            "Run ./install.sh (full local build) or build the small CI fixture with:\n"
+            "  python tests/make_fixture_db.py --out data/explorer.db"
+        )
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+            print(f"ERROR: {message}", file=sys.stderr)
+            return 1
+        print(f"Skipping fixture generation: {message}")
         return 0
 
     # 5a.B2: complete the main file without any writes.

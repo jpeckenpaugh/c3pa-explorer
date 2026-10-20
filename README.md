@@ -11,7 +11,7 @@ One repo, two runtimes:
   SQLite database (`backend/` + `frontend/`).
 - **Browser edition** — the same SPA running entirely in the browser on
   [sql.js](https://sql.js.org/en/) (SQLite → WebAssembly) against a prebuilt,
-  signed snapshot. This is what GitHub Pages serves at
+  hash-verified snapshot. This is what GitHub Pages serves at
   **https://jpeckenpaugh.github.io/c3pa-explorer/**.
 
 Both editions share the SPA and the same SQLite schema. The browser edition
@@ -46,7 +46,8 @@ by design. See the rationale comment in `backend/extract.py:classify_unit`.
 
 Every row keeps provenance (`source_html`, `source_csv`, `crawl_path`); the
 `alignment` table records the exact annotation→unit mapping for auditable
-labels.
+labels. The full extraction rules and rationale are in
+[docs/extraction_logic.md](docs/extraction_logic.md).
 
 ## What you can do
 
@@ -71,16 +72,17 @@ labels.
 | `tools/build_site.py` | Stages `site/` from `frontend/` + the snapshot (no rewriting — `index.html` is already the shell) |
 | `tools/serve.py` | Local static server for the browser edition (WASM MIME types) |
 | `builds.json` | Snapshot registry: file, canonical URL, envelope hash, db hash, row counts |
-| `c3pa-db_*.tar.gz`, `meta_*.md` | The canonical signed snapshot + its metadata |
-| `scripts/` | `package_snapshot.py` (snapshot archive + registry), `build_colab_notebook.py` (notebook generator) |
+| `c3pa-db_*.tar.gz`, `meta_*.md` | The canonical hash-verified snapshot + its metadata |
+| `.github/workflows/pages.yml` | The single CI workflow: required test matrix on PR/push, Pages deploy on `main` |
+| `scripts/` | `package_snapshot.py` (snapshot archive + registry), `verify_snapshot.py` (canonical URL + hash check), `build_colab_notebook.py` (notebook generator) |
 | `notebooks/` | `build_snapshot_colab.ipynb` — rebuild the snapshot DB on Colab |
-| `tests/` | Backend `unittest` + JS unit + browser-edition parity/bridge tests |
+| `tests/` | Backend `unittest` + JS unit + browser-edition parity/bridge tests; `make_fixture_db.py` builds the small CI fixture |
 | `c3pa-sentence-label-parser/` | Git submodule: the baseline parser + the C3PA dataset (needed only to rebuild the DB) |
 
 ## Two engines, one frontend
 
 The SPA defaults to the **sql.js (WASM) engine**: on load it auto-loads the
-latest signed snapshot (or restores the one cached in your browser) and runs
+latest hash-verified snapshot (or restores the one cached in your browser) and runs
 every query in a Web Worker — no server, no network calls after the snapshot
 download. A **DB icon** in the top nav opens a modal that shows snapshot
 details (schema version, dataset commit, hashes, integrity, row counts) and can
@@ -126,8 +128,21 @@ point the DB icon at a FastAPI backend.
 The snapshot archive `c3pa-db_v0.1_<db8>.tar.gz` contains `explorer.db` +
 `meta_*.md`. Its **envelope hash** (the tar.gz itself) and the inner **db hash**
 are both recorded in `builds.json` under `file` / `envelope_hash` /
-`db_sha256`. The app verifies the uploaded archive against these recorded
-values, so a snapshot that matches a published build imports as *known good*.
+`db_sha256`. This is SHA-256 verification, not a cryptographic signature: the
+app verifies any snapshot it loads against the recorded values, so a snapshot
+that matches a published build imports as *known good*.
+
+The canonical download URL is
+`https://raw.githubusercontent.com/jpeckenpaugh/c3pa-explorer/main/c3pa-db_v0.1_663586da.tar.gz`
+(also recorded as `canonical_url` in `meta_663586da.md`). Verify it with:
+
+```bash
+python3 scripts/verify_snapshot.py --mode head   # HTTP 200 only (PR CI)
+python3 scripts/verify_snapshot.py --mode full   # download + envelope/db hashes
+```
+
+CI runs the HEAD check on pull requests and the full hash check on `main`
+pushes and the weekly schedule.
 
 Rebuilding a snapshot:
 
@@ -147,16 +162,40 @@ want to preview the exact deployable locally:
 python3 tools/build_site.py    # reads the repo root, writes site/
 ```
 
-On push to `main`, the Pages workflow assembles `site/` fresh from the repo and
-deploys it — no regeneration discipline required, and no drift is possible
-because `site/` is never a second source of truth (see
-`.github/workflows/pages.yml`).
+`.github/workflows/pages.yml` is the only workflow. Pull requests run the
+required test matrix (Python 3.10 + 3.12, Node 20) plus a HEAD check of the
+canonical snapshot URL. On push to `main` the same tests run with the full
+snapshot hash check; only if they pass does the `deploy` job assemble `site/`
+fresh from the repo and publish it. No regeneration discipline is required, and
+no drift is possible because `site/` is never a second source of truth.
 
 ## Testing
 
-`./tests.sh` runs the whole suite in one command:
+Local one-command path (builds the full DB, keeps the original experience):
+
+```bash
+./install.sh
+./tests.sh
+```
+
+Fast local/CI path (no dataset, no 400-document build; Python deps still
+required via `pip install -r requirements.txt`):
+
+```bash
+python3 tests/make_fixture_db.py --out data/explorer.db
+C3PA_DB_PATH=data/explorer.db PYTHON=python3 ./tests.sh
+```
+
+`make_fixture_db.py` deterministically extracts the first 5 documents from each
+subset of the checked-in canonical snapshot, so the suite is self-contained and
+offline. `tests.sh` uses `.venv/bin/python` by default and honors `PYTHON=...`;
+all Python and parity tests read `data/explorer.db` unless `C3PA_DB_PATH` points
+elsewhere. In CI a missing fixture DB fails loudly instead of skipping parity.
+
+The suite (in order, fail-fast) covers:
 
 - Backend API tests (Python `unittest` via FastAPI `TestClient`, `tests/test_api.py`)
+- FastAPI fixture generation for parity (`tests/gen_fastapi_fixtures.py`)
 - Frontend unit tests (Node native runner, `tests/frontend/*.test.js`)
 - Browser-edition tests: FastAPI↔sql.js JSON parity, bridge/URL parsing,
   snapshot archive, published-snapshot, and export ports (`tests/jbrowser_*.test.js`)
@@ -172,7 +211,8 @@ because `site/` is never a second source of truth (see
 - `GET /api/export?format=&split=&...` — timestamped ZIP with partition files
 - `GET /api/search?q=` — global multi-entity search
 
-Interactive docs at `http://localhost:8765/docs`.
+See [docs/export_api.md](docs/export_api.md) for the export field, split, and
+ZIP layout reference. Interactive docs at `http://localhost:8765/docs`.
 
 ## License / credit
 
