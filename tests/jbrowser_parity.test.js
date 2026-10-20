@@ -38,7 +38,7 @@ import { createQuery } from "../frontend/sqljs/js/query/sqlite-bridge.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
-const DB_PATH = path.join(ROOT, "data", "explorer.db");
+const DB_PATH = path.resolve(ROOT, process.env.C3PA_DB_PATH || path.join("data", "explorer.db"));
 const EXPECTED_DIR = path.join(HERE, "expected");
 const MANIFEST_PATH = path.join(HERE, "fixtures.manifest.json");
 const SQLJS_DIR = path.join(ROOT, "frontend", "sqljs", "vendor", "sql.js");
@@ -144,7 +144,13 @@ function resolveTokens(text, seeds) {
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
 
 if (!fs.existsSync(DB_PATH)) {
-  console.error(`Skipping sql.js parity suite: ${DB_PATH} not found (snapshot build is a hard dependency).`);
+  if (process.env.CI || process.env.GITHUB_ACTIONS) {
+    test("parity: fixture DB present", () => {
+      assert.fail(`fixture DB not found at ${DB_PATH}; build it with tests/make_fixture_db.py`);
+    });
+  } else {
+    console.error(`Skipping sql.js parity suite: ${DB_PATH} not found (snapshot build is a hard dependency).`);
+  }
 } else {
   for (const entry of manifest.entries) {
     test(`parity: ${entry.id}`, async () => {

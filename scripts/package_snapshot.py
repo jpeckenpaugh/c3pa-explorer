@@ -37,8 +37,9 @@ def parse_args(argv):
     ap.add_argument("--sha-length", type=int, default=8, help="short-hash prefix length for names")
     ap.add_argument("--db-name", default="explorer.db", help="member name for the db inside the archive")
     ap.add_argument("--archive-prefix", default="c3pa-db", help="archive name prefix (canonical URL uses this)")
-    ap.add_argument("--canonical-prefix", default="https://github.com/jpeckenpaugh/c3pa-explorer",
-                    help="repo base URL for the published snapshot path")
+    ap.add_argument("--canonical-prefix",
+                    default="https://raw.githubusercontent.com/jpeckenpaugh/c3pa-explorer/main",
+                    help="raw base URL where the published archive lives (no /snapshots suffix)")
     return ap.parse_args(argv)
 
 
@@ -144,7 +145,7 @@ def main(argv=None):
     # 2) canonical archive: c3pa-db_{version}_{sha8}.tar.gz, with its own URL
     #    (db hash embedded in the name) recorded as a field inside the bundle.
     archive_name = f"{args.archive_prefix}_{args.version}_{db_short}.tar.gz"
-    canonical_url = f"{args.canonical_prefix}/snapshots/{archive_name}"
+    canonical_url = f"{args.canonical_prefix.rstrip('/')}/{archive_name}"
 
     meta_name = f"meta_{db_short}.md"
     meta_bytes = build_meta(db_bytes, counts, manifest, args.version, db_short, db_sha,

@@ -119,9 +119,13 @@ DB_PATH = None
 
 
 def connect():
+    import os
     import sqlite3
 
-    path = DB_PATH or "data/explorer.db"
+    # C3PA_DB_PATH lets tests/CI point at a small fixture DB without touching
+    # the default local build. An explicitly assigned DB_PATH (used by ingest)
+    # still wins.
+    path = DB_PATH or os.environ.get("C3PA_DB_PATH") or "data/explorer.db"
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
